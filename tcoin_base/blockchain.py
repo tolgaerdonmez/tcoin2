@@ -18,20 +18,24 @@ class Block():
         self.index = index
         self.prev_hash = previous_hash
         self.transactions = transactions
-        self.timestamp = str(datetime.datetime.now())
+        self.timestamp = None#str(datetime.datetime.now())
         self.nodes = nodes
         self.miner = miner
         self.proof = None
-        self.hash = self.calc_hash()
+        self.hash = None#self.calc_hash()
 
     def calc_hash(self):
+        self.timestamp = str(datetime.datetime.now())
         encoded_block = (str(self.index) + self.timestamp + self.prev_hash + str(self.transactions) + str(self.nodes)).encode()
         hash = hashlib.sha256(encoded_block).hexdigest()
+        self.hash = hash
         return hash
 
     def __str__(self):
         string = f"index: {self.index}\n hash: {self.hash}\n previous_hash: {self.prev_hash}\n transactions: {str(self.transactions)}\n nodes: {str(self.nodes)}\n proof: {self.proof}\n miner: {self.miner}"
         return string
+
+DIFFICULTY = '0000'
 
 class Blockchain():
 
@@ -42,7 +46,6 @@ class Blockchain():
         self.current_transactions = []
         # dict of node_socket:node_addr 
         self.current_nodes = {(node.IP,node.PORT)}
-        self.difficulty = '0000'
     
     @staticmethod
     def load_blockchain(cur_node):
@@ -84,11 +87,11 @@ class Blockchain():
         self.current_transactions = []
         
         # doing proof of work (a.k.a mining)
-        new_block.proof = self.proof_of_work(new_block)
+        new_block.hash, new_block.proof = self.proof_of_work(new_block)
         
         self.chain.append(new_block)
 
-        # self.save_blockchain()
+        self.save_blockchain()
 
     def last_block(self):
         return self.chain[-1]
@@ -98,23 +101,26 @@ class Blockchain():
         proof = 0
         proofed = False
         while not proofed:
+            block.calc_hash()
             hash = hashlib.sha256((block.hash + str(block.miner) + str(proof)).encode()).hexdigest()
-            if hash[:len(self.difficulty)] == self.difficulty:
+            if hash[:len(DIFFICULTY)] == DIFFICULTY:
                 proofed = True
-                return proof
+                return block.hash, proof
             else:
                 proof += 1
-
-    def check_chain(self,chain):
+    
+    @staticmethod
+    def check_chain(chain):
         # checking chain integrity
         index = 1
         while index<len(chain):
             block = chain[index]
             prev_block = chain[index-1]
             # 1. checking proof of work
-            fresh_hash = block.calc_hash()
+            fresh_hash = (str(block.index) + block.timestamp + block.prev_hash + str(block.transactions) + str(block.nodes)).encode()
+            fresh_hash = hashlib.sha256(fresh_hash).hexdigest()
             proof_hash = hashlib.sha256((fresh_hash + str(block.miner) + str(block.proof)).encode()).hexdigest()
-            if proof_hash[:len(self.difficulty)] != self.difficulty:
+            if proof_hash[:len(DIFFICULTY)] != DIFFICULTY:
                 return False
             # 2. checking hash bonds
             if block.prev_hash != prev_block.hash:
@@ -124,16 +130,24 @@ class Blockchain():
         # if no inconsistency 
         return True
     
-    def replace_chain(self,chains):
-        longest = self.chain
+    def replace_chain(self, chains):
+        longest_chain = None
+        max_length = len(self.chain)
         for cur_chain in chains:
-            if len(cur_chain) > len(longest) and self.check_chain(cur_chain):
-                longest = cur_chain
-        if len(longest) > len(self.chain):
-            self.chain = longest
+            length = len(cur_chain)
+            if length > max_length and Blockchain.check_chain(cur_chain):
+                max_length = length
+                longest_chain = cur_chain
+        # if the longest_chain is not none
+        if longest_chain:
+            self.chain = longest_chain
             print("Chain Replaced with the longest chain !")
         else:
             print("No need for replacing")
-           
+    
+    def __str__(self):
+        string = ''
+        for block in self.chain:
+            string += str(block) + '\n'
+        return string
 
-            

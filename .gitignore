@@ -1,5 +1,8 @@
 _/
 .vscode/
+__pycache__/
+tcoin_base/__pycache__/
 venv/
 utils/
 deneme*
+*.pem
