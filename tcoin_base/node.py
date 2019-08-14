@@ -1,6 +1,5 @@
 from .blockchain import Blockchain, Block
 from .transaction import Transaction, NEW_TX
-from .wallet import SEND_CHAIN
 import socket
 import select
 import threading
@@ -116,14 +115,13 @@ class Node(socket.socket):
                 continue
             # for node_client in self.incoming_clients:
             node_client = self.incoming_clients.get()
-
             # receiving join message and node addr
             node_msg = self.get_data(node_client)
             if not node_msg:
                 continue
-           
+
             msg_header = node_msg[0][0]
-            print('communacting nodes'.capitalize(), msg_header)
+            print('communicating nodes'.capitalize(), msg_header)
             if msg_header == JOIN_MSG:
                 for msg in node_msg:
                     node_addr = msg[1]
@@ -138,16 +136,12 @@ class Node(socket.socket):
                         ram_chains[msg[1]] = loaded_chain
                     if len(ram_chains) == (len(self.blockchain.current_nodes) - 1):
                         self.blockchain.replace_chain(ram_chains.values())
-                        ram_chains = {}
-            # SEND_CHAIN sends the chain to desired clients like wallets
-            # elif msg_header == SEND_CHAIN:
-            #     pickled_chain = pickle.dumps(self.blockchain.chain)
-            #     node_client.send(pickled_chain)
-            elif msg_header == NEW_TX:
-                for msg in node_msg:
-                    new_tx = pickle.loads(msg[1])
-                    self.blockchain.current_transactions.append(new_tx)
-                    print(new_tx)
+                        ram_chains = {}     
+            # elif msg_header == NEW_TX:
+            #     for msg in node_msg:
+            #         new_tx = pickle.loads(msg[1])
+            #         self.blockchain.current_transactions.append(new_tx)
+            #         print(new_tx)
             
             node_client.close()
             

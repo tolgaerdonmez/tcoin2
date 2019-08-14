@@ -33,15 +33,10 @@ class Wallet(socket.socket):
         if len(node_addr) > 0:
             self.connect(node_addr)
             print('connected')
-        self.setblocking(True)
+        self.setblocking(False)
 
         self.chain = None
-        # self.req_blockchain()
-        # self.recv_blockchain()
-        # print(self.chain[0])
-        # print('Connected ! Ready to go !')
        
-        
     def calculate_coins(self, chain):
         return 0
 
@@ -86,33 +81,6 @@ class Wallet(socket.socket):
                 file.write(pu_key)
         except:
             return False
-
-    def req_blockchain(self):
-
-
-        msg = [SEND_CHAIN]
-        msg = pickle.dumps(msg)
-        self.send(msg)
-        # time.sleep(5)
-        # print('sent!')
-        # t = threading.Thread(target=recv_chain, args=(self,))
-        # t.start()
-
-    def recv_blockchain(self):
-        print(self.recv(1024))
-        # data = b''
-        # while True:
-        #     d = self.recv(1024)
-        #     if not len(d):
-        #         return False
-        #     data += d
-        # chain = pickle.loads(data)
-        # check = Blockchain.check_chain(chain)
-        # if check:
-        #     self.chain = chain
-        # else:
-        #     print('Please try to connect to our another blockchain node !')
-        # return True
 
     @staticmethod
     def verify(data, sig, public_key):
