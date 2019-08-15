@@ -90,7 +90,7 @@ class Blockchain():
         new_block.hash, new_block.proof = self.proof_of_work(new_block)
         
         self.chain.append(new_block)
-
+        print(new_block)
         self.save_blockchain()
 
     def last_block(self):

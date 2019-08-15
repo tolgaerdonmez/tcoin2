@@ -1,5 +1,3 @@
-NEW_TX = 'NEW_TX'
-
 class Transaction():
 
     def __init__(self, sender, receiver, input, output):

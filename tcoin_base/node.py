@@ -1,5 +1,6 @@
 from .blockchain import Blockchain, Block
-from .transaction import Transaction, NEW_TX
+from .transaction import Transaction
+from .wallet import WALLET_CHAIN, NEW_TX
 import socket
 import select
 import threading
@@ -14,6 +15,7 @@ JOIN_INTERVAL = 5
 NEW_BLOCK_MSG = 'NEW_TCOIN_BLOCK'
 GET_CHAIN = 'GET_CHAIN'
 SEND_CHAIN_INTERVAL = 10
+HEADER_LENGTH = 100
 
 class NodeClient(socket.socket):
 
@@ -22,11 +24,12 @@ class NodeClient(socket.socket):
 
     def connect_node(self, conn_addr, node_addr):
         super().connect(conn_addr)
-        self.setblocking(True)
+        # self.setblocking(True)
         try:
             join_msg = [JOIN_MSG,node_addr]
             join_msg = pickle.dumps(join_msg)
-            self.send(join_msg)
+            msg = f"{len(join_msg):<{HEADER_LENGTH}}".encode() + join_msg
+            self.send(msg)
             return True
         except:
             return False
@@ -39,7 +42,8 @@ class NodeClient(socket.socket):
             pickled_chain = pickle.dumps(chain)
             chain_msg = [GET_CHAIN,conn_addr,pickled_chain]
             chain_msg = pickle.dumps(chain_msg)
-            self.send(chain_msg)
+            msg = f"{len(chain_msg):<{HEADER_LENGTH}}".encode() + chain_msg
+            self.send(msg)
             return True
         except:
             return False
@@ -90,12 +94,15 @@ class Node(socket.socket):
     def get_data(self, socket):
         msg_list = []
         while True:
-            node_msg = socket.recv(1024 * 1024)
-            if not len(node_msg) > 0:
-               break
+            header = socket.recv(HEADER_LENGTH)
+            if not header:
+                break
+            node_msg = socket.recv(int(header))
             node_msg = pickle.loads(node_msg)
             if type(node_msg) == type([]):
                 msg_list.append(node_msg)
+            if node_msg[0] == WALLET_CHAIN:
+                break
         if len(msg_list) > 0:
             return msg_list
         else:
@@ -136,12 +143,19 @@ class Node(socket.socket):
                         ram_chains[msg[1]] = loaded_chain
                     if len(ram_chains) == (len(self.blockchain.current_nodes) - 1):
                         self.blockchain.replace_chain(ram_chains.values())
-                        ram_chains = {}     
-            # elif msg_header == NEW_TX:
-            #     for msg in node_msg:
-            #         new_tx = pickle.loads(msg[1])
-            #         self.blockchain.current_transactions.append(new_tx)
-            #         print(new_tx)
+                        ram_chains = {} 
+
+            elif msg_header == WALLET_CHAIN:
+                pickled_chain = pickle.dumps(self.blockchain.chain)
+                data = f"{len(pickled_chain):<{HEADER_LENGTH}}".encode() + pickled_chain
+                node_client.send(data)
+                print('chain sent!')
+
+            elif msg_header == NEW_TX:
+                for msg in node_msg:
+                    new_tx = pickle.loads(msg[1])
+                    self.blockchain.current_transactions.append(new_tx)
+                    print(new_tx)
             
             node_client.close()
             
