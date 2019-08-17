@@ -6,3 +6,4 @@ venv/
 utils/
 deneme*
 *.pem
+_*

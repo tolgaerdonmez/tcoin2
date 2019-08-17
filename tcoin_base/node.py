@@ -1,6 +1,6 @@
 from .blockchain import Blockchain, Block
 from .transaction import Transaction
-from .wallet import WALLET_CHAIN, NEW_TX
+from .wallet import Wallet, WALLET_CHAIN, NEW_TX
 import socket
 import select
 import threading
@@ -15,7 +15,7 @@ JOIN_INTERVAL = 5
 NEW_BLOCK_MSG = 'NEW_TCOIN_BLOCK'
 GET_CHAIN = 'GET_CHAIN'
 SEND_CHAIN_INTERVAL = 10
-HEADER_LENGTH = 100
+HEADER_LENGTH = 1000
 
 class NodeClient(socket.socket):
 
@@ -58,13 +58,14 @@ class Node(socket.socket):
         super().__init__(socket.AF_INET,socket.SOCK_STREAM)
         self.bind((self.IP, self.PORT))
         self.listen()
-
+        
         # __init__ Node
         self.threads = {}
         self.is_miner = is_miner
         self.sending_chain = False
         self.incoming_clients = LifoQueue()
 
+        self.wallet = Wallet.load_wallet_pem(file_path='./2')
         # loading if already a blockchain exists
         loaded_chain = Blockchain.load_blockchain((self.IP,self.PORT))
         if loaded_chain:
@@ -101,7 +102,7 @@ class Node(socket.socket):
             node_msg = pickle.loads(node_msg)
             if type(node_msg) == type([]):
                 msg_list.append(node_msg)
-            if node_msg[0] == WALLET_CHAIN:
+            if node_msg[0] == WALLET_CHAIN or node_msg[0] == NEW_TX:
                 break
         if len(msg_list) > 0:
             return msg_list
@@ -149,14 +150,17 @@ class Node(socket.socket):
                 pickled_chain = pickle.dumps(self.blockchain.chain)
                 data = f"{len(pickled_chain):<{HEADER_LENGTH}}".encode() + pickled_chain
                 node_client.send(data)
+                if self.blockchain.last_block() != None : print(self.blockchain.last_block().hash)
                 print('chain sent!')
 
             elif msg_header == NEW_TX:
                 for msg in node_msg:
                     new_tx = pickle.loads(msg[1])
                     self.blockchain.current_transactions.append(new_tx)
-                    print(new_tx)
-            
+                    print(Transaction.from_dict(new_tx).sig)
+                    self.blockchain.create_block(self.wallet.pu_ser.decode())
+                    print(Blockchain.check_chain(self.blockchain.chain))
+                    
             node_client.close()
             
     def pop_nodes(self,nodes):
@@ -193,12 +197,8 @@ class Node(socket.socket):
         self.pop_nodes(excep_nodes)
         self.blockchain.current_nodes.add((self.IP,self.PORT))
 
-    def new_job(self, target, args = None, daemon = False):
-        t = threading.Thread(target=target)
-        # t = Process(target=target)
+    def new_job(self, target, args = (), daemon = False):
+        t = threading.Thread(target=target, args = args)
         self.threads[target] = t
-        if args != None:
-            t.args = args
         t.daemon = daemon
         t.start()
-    

@@ -21,4 +21,14 @@ class Transaction():
         return [self.input,self.output]
 
     def __str__(self):
-        return f"Sender: {self.sender[30:40].decode()}... \n Receiver: {self.receiver[30:40].decode()}... \n Amount: {self.output} Tx fee: {self.tx_fee}"
+        return f"Sender: {self.sender[30:40]}... \n Receiver: {self.receiver[30:40]}... \n Amount: {self.output} Tx fee: {self.tx_fee}"
+
+    def dict(self):
+        dict = {'sender':self.sender,'receiver':self.receiver,'input':self.input,'output':self.output,'tx_fee':self.tx_fee,'sig':self.sig}
+        return dict
+
+    @staticmethod
+    def from_dict(dict):
+        tx = Transaction(sender = dict['sender'],receiver = dict['receiver'], input = dict['input'], output = dict['output'])
+        tx.sig = dict['sig']
+        return tx

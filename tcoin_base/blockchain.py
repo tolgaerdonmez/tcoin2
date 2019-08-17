@@ -2,6 +2,7 @@ import hashlib
 import datetime
 import time
 import pickle
+import json
 
 def timeit(method):
     def timed(*args, **kw):
@@ -34,6 +35,10 @@ class Block():
     def __str__(self):
         string = f"index: {self.index}\n hash: {self.hash}\n previous_hash: {self.prev_hash}\n transactions: {str(self.transactions)}\n nodes: {str(self.nodes)}\n proof: {self.proof}\n miner: {self.miner}"
         return string
+
+    def dict(self):
+        dict = {'index':self.index, 'timestamp':self.timestamp, 'miner':self.miner, 'hash':self.hash, 'prev_hash': self.prev_hash, 'proof':self.proof, 'nodes':list(self.nodes), 'transactions':self.transactions}
+        return dict
 
 DIFFICULTY = '0000'
 
@@ -94,6 +99,8 @@ class Blockchain():
         self.save_blockchain()
 
     def last_block(self):
+        if len(self.chain) == 0:
+            return None
         return self.chain[-1]
     
     # @timeit
@@ -151,3 +158,14 @@ class Blockchain():
             string += str(block) + '\n'
         return string
 
+    def dict(self):
+        dict = {'chain':[],'length':len(self.chain)}
+        for block in self.chain:
+            dict_tx = []
+            for tx in block.transactions:
+                print(tx)
+                dict_tx.append(tx.dict())
+            block.transactions = dict_tx
+            dict['chain'].append(block.dict())
+        print(dict)
+        return dict

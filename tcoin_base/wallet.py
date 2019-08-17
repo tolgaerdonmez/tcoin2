@@ -8,14 +8,14 @@ import pickle
 import threading
 import time
 import sys
-import errno
+import errno, json
 # rsa.key.PrivateKey._save_pkcs1_pem() => saves key like -----BEGIN RSA PRIVATE KEY-----
 # rsa.key.PrivateKey._load_pkcs1_pem(data) => loads key from like -----BEGIN RSA PRIVATE KEY-----
 WALLET_CHAIN = 'WALLET_CHAIN'
 NEW_TX = 'NEW_TX'
-HEADER_LENGTH = 100
+HEADER_LENGTH = 1000
 
-class OneClient(socket.socket):
+class WClient(socket.socket):
 
     def __init__(self, conn_addr):
         super().__init__(socket.AF_INET,socket.SOCK_STREAM)
@@ -39,7 +39,15 @@ class OneClient(socket.socket):
                     length = int(header.decode())
                     data = self.recv(length)
                     chain = pickle.loads(data)
+                    # with open('s.json','w') as f:
+                    #     json.dump(chain.dict(),f,indent=4)
                     check = Blockchain.check_chain(chain)
+                    if len(chain) == 0:
+                        pass
+                    else:
+                        for block in chain:
+                            print(block.hash)
+                        print(len(chain))
                     if check:
                         return chain
                     else:
@@ -53,11 +61,32 @@ class OneClient(socket.socket):
                     continue
         self.close()
 
+    @staticmethod
+    def connect(node_addr):
+        one_client = WClient(node_addr)
+        is_connected = one_client.connect_blockchain()
+
+        if is_connected != False and type(is_connected) == type(list()):
+            print('Connected to Blockchain ! Ready to go !')
+            chain = is_connected
+            return chain
+        else:
+            print('Try to connect another blockchain node...')
+            sys.exit()
+
+    @staticmethod
+    def send_tx(node_addr, tx_data):
+        one_client = WClient(node_addr)
+        one_client.send(tx_data)
+        one_client.close()
+
 class Wallet(socket.socket):
 
     def __init__(self, node_addr = tuple(), pr = None, pu = None):
         # __init__ Wallet
         self.__BITS = 2048
+        self.node_addr = node_addr
+        print('Connecting to TCOIN BLOCKCHAIN...')
         # if loaded
         if pr != None:
             self.public, self.private = pu, pr
@@ -68,39 +97,26 @@ class Wallet(socket.socket):
 
         self.pu_ser = rsa.pem.save_pem(self.public._save_pkcs1_pem(),'RSA PUBLIC KEY')
         
-        self.chain = None
-        one_client = OneClient(node_addr)
-        is_connected = one_client.connect_blockchain()
+        # connect to blockchain if node_addr is given
+        if len(self.node_addr) != 0:
+            self.connect_blockchain()
 
-        if is_connected:
-            self.chain = is_connected
-            print('Connected to Blockchain ! Ready to go !')
-        else:
-            print('Try to connect another blockchain node...')
-            sys.exit()
-
-        # __init__ socket
-        print('Connecting to TCOIN BLOCKCHAIN...')
-        # creating a client for connecting blockchain
-        super().__init__(socket.AF_INET,socket.SOCK_STREAM)
-        if len(node_addr) > 0:
-            self.connect(node_addr)
-            print('connected')
-        self.setblocking(False)
-
+    def connect_blockchain(self):
+        self.chain = WClient.connect(self.node_addr)
+        
     def calculate_coins(self):
         total = 0
-        plus = []
-        minus = []
+        plus = 0
+        minus = 0
         for block in self.chain:
-            for tx in block.transactions:
-                if tx.sender == self.pu_ser:
-                    minus.append(tx.input)
-                if tx.receiver == self.pu_ser:
-                    plus.append(tx.output)
-                if tx.miner == self.pu_ser:
-                    plus.append(tx.tx_fee)
-        total = sum(plus) - sum(minus)
+            for tx_dict in block.transactions:
+                tx = Transaction.from_dict(tx_dict)
+                if tx.sender == self.pu_ser.decode():
+                    minus += tx.input
+                if tx.receiver == self.pu_ser.decode():
+                    plus += tx.output
+        total = plus - minus
+        print(plus,minus)
         return total
 
     def sign(self, tx):
@@ -113,20 +129,22 @@ class Wallet(socket.socket):
 
     def send_tx(self, receiver_pu, amount, tx_fee):
         new_tx = Transaction(
-            sender = self.pu_ser,
-            receiver = receiver_pu,
+            sender = self.pu_ser.decode(),
+            receiver = receiver_pu.decode(),
             input = amount + tx_fee,
             output = amount
         )
         sig, signed = self.sign(new_tx.gather())
         if signed:
             new_tx.sig = sig
+            new_tx = new_tx.dict()
             pickled_tx = pickle.dumps(new_tx)
             tx_data = [NEW_TX, pickled_tx]
             tx_data = pickle.dumps(tx_data)
             data = f"{len(tx_data):<{HEADER_LENGTH}}".encode() + tx_data
             try:
-                self.send(data)
+                # creating a new WClient and sending new tx
+                WClient.send_tx(self.node_addr, data)
                 print('sending tx...')
                 return True
             except:
@@ -146,39 +164,8 @@ class Wallet(socket.socket):
         except:
             return False
 
-    def communucate_blockchain(self):
-            message = [WALLET_CHAIN]
-            message = pickle.dumps(message)
-            message = f"{len(message):<{HEADER_LENGTH}}".encode() + message
-            self.send(message)
-            while True:
-                try:
-                    while True:
-                        # receive things
-                        header = self.recv(HEADER_LENGTH)
-                        if not len(header):
-                            print("Connection closed by the blockchain node")
-                            sys.exit()
-                        length = int(header.decode())
-                        data = self.recv(length)
-                        chain = pickle.loads(data)
-                        check = Blockchain.check_chain(chain)
-                        if check:
-                            self.chain = chain
-                            return True
-                        else:
-                            return False               
-                except IOError as e:
-                    if e.errno != errno.EAGAIN or e.errno != errno.EWOULDBLOCK:
-                        print('Read Error !',str(e))
-                        return False
-                    else:
-                        continue
-
-    def new_job(self, target, args = None, daemon = False):
-        t = threading.Thread(target=target)
-        if args != None:
-            t.args = args
+    def new_job(self, target, args = (), daemon = False):
+        t = threading.Thread(target=target, args = args)
         t.daemon = daemon
         t.start()
 
@@ -193,7 +180,7 @@ class Wallet(socket.socket):
     
     # loads private key from .pem file
     @staticmethod
-    def load_wallet_pem(node_addr, file_path = './'):
+    def load_wallet_pem(node_addr = tuple(), file_path = './'):
         try:
             with open(file_path + 'pr_key.pem','rb') as pem_key:
                 private_key = rsa.pem.load_pem(pem_key.read(),'RSA PRIVATE KEY')
