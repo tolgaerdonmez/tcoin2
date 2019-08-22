@@ -20,7 +20,7 @@ class Block():
         self.prev_hash = previous_hash
         self.transactions = transactions
         self.timestamp = None#str(datetime.datetime.now())
-        self.nodes = nodes
+        self.nodes = sorted(nodes)
         self.miner = miner
         self.proof = None
         self.hash = None#self.calc_hash()
@@ -39,6 +39,10 @@ class Block():
     def dict(self):
         dict = {'index':self.index, 'timestamp':self.timestamp, 'miner':self.miner, 'hash':self.hash, 'prev_hash': self.prev_hash, 'proof':self.proof, 'nodes':list(self.nodes), 'transactions':self.transactions}
         return dict
+
+    # @staticmethod
+    # def from_dict(self):
+    #     b = Block()
 
 DIFFICULTY = '0000'
 
@@ -72,6 +76,8 @@ class Blockchain():
     def save_blockchain(self):
         with open('blockchain','wb') as file:
             pickle.dump(self, file)
+        # with open('blockchain.json','w') as file:
+        #     json.dump(self.dict(),file,indent=4)
 
     def create_block(self, miner):
         # if creating genesis block
@@ -80,11 +86,13 @@ class Blockchain():
         else:
             prev_hash = self.last_block().hash
 
+        nodes = self.current_nodes.copy()
+        transactions = self.current_transactions.copy()
         new_block = Block(
             index = len(self.chain) + 1,
             previous_hash = prev_hash,
-            transactions = self.current_transactions,
-            nodes = self.current_nodes,
+            transactions = transactions,
+            nodes = nodes,
             miner = miner
         )
         
@@ -128,6 +136,7 @@ class Blockchain():
             fresh_hash = hashlib.sha256(fresh_hash).hexdigest()
             proof_hash = hashlib.sha256((fresh_hash + str(block.miner) + str(block.proof)).encode()).hexdigest()
             if proof_hash[:len(DIFFICULTY)] != DIFFICULTY:
+                print('block ',index)
                 return False
             # 2. checking hash bonds
             if block.prev_hash != prev_block.hash:
@@ -140,9 +149,14 @@ class Blockchain():
     def replace_chain(self, chains):
         longest_chain = None
         max_length = len(self.chain)
+        # print('this chain', len(self.chain))
+        # print('chains', len(chains))
         for cur_chain in chains:
             length = len(cur_chain)
+            # print('other chains', length)
+            # print('query',(length > max_length))
             if length > max_length and Blockchain.check_chain(cur_chain):
+                # print(cur_chain)
                 max_length = length
                 longest_chain = cur_chain
         # if the longest_chain is not none

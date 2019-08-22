@@ -34,13 +34,12 @@ class NodeClient(socket.socket):
         except:
             return False
             
-    def send_chain(self, conn_addr, chain):
-        print(f"sending chain to {conn_addr}")
+    def send_chain(self, node_addr, conn_addr, chain):
         super().connect(conn_addr)
 
         try:
             pickled_chain = pickle.dumps(chain)
-            chain_msg = [GET_CHAIN,conn_addr,pickled_chain]
+            chain_msg = [GET_CHAIN,node_addr,pickled_chain]
             chain_msg = pickle.dumps(chain_msg)
             msg = f"{len(chain_msg):<{HEADER_LENGTH}}".encode() + chain_msg
             self.send(msg)
@@ -81,7 +80,7 @@ class Node(socket.socket):
         # Starting threads
         self.new_job(target=self.get_clients)
         self.new_job(target=self.communucate_nodes)
-        self.new_job(target=self.send_chain)
+        # self.new_job(target=self.send_chain)
         # if self.is_miner:
         #     self.new_job(target=self.mine_block)
         
@@ -136,12 +135,14 @@ class Node(socket.socket):
                     # if node is online => add to node list
                     self.blockchain.current_nodes.add(tuple(node_addr))
                     print(f"New node connected to blockchain!\n Node Address: {node_addr[0]}:{node_addr[1]}")
-            # GET_CHAIN gets chain around a period from other nodes
+            # GET_CHAIN gets chain around a period of time from other nodes for replacing
             elif msg_header == GET_CHAIN:
                 for msg in node_msg:
                     loaded_chain = pickle.loads(msg[2])
                     if not msg[1] in ram_chains:
                         ram_chains[msg[1]] = loaded_chain
+                    print('chain got from: ', msg[1])
+                    print('ram chain length ', len(ram_chains.values()))
                     if len(ram_chains) == (len(self.blockchain.current_nodes) - 1):
                         self.blockchain.replace_chain(ram_chains.values())
                         ram_chains = {} 
@@ -151,15 +152,12 @@ class Node(socket.socket):
                 data = f"{len(pickled_chain):<{HEADER_LENGTH}}".encode() + pickled_chain
                 node_client.send(data)
                 if self.blockchain.last_block() != None : print(self.blockchain.last_block().hash)
-                print('chain sent!')
 
             elif msg_header == NEW_TX:
                 for msg in node_msg:
                     new_tx = pickle.loads(msg[1])
                     self.blockchain.current_transactions.append(new_tx)
-                    print(Transaction.from_dict(new_tx).sig)
-                    self.blockchain.create_block(self.wallet.pu_ser.decode())
-                    print(Blockchain.check_chain(self.blockchain.chain))
+                    print('New TX !')
                     
             node_client.close()
             
@@ -168,21 +166,22 @@ class Node(socket.socket):
             self.blockchain.current_nodes.remove(node)
 
     def send_chain(self):
-        while True:
-            time.sleep(SEND_CHAIN_INTERVAL)
-            if len(self.blockchain.current_nodes) - 1 == 0:
-                continue
-            excep_nodes = []
-            all_nodes = self.blockchain.current_nodes
-            for (ip,port) in all_nodes:
-                if (ip,port) != (self.IP,self.PORT):
-                    try:
-                        client = NodeClient()
-                        client.send_chain((ip,port),self.blockchain.chain)
-                        client.close()
-                    except:
-                        excep_nodes.append((ip,port))
-            self.pop_nodes(excep_nodes)
+        # while True:
+        #     time.sleep(SEND_CHAIN_INTERVAL)
+        #     if len(self.blockchain.current_nodes) - 1 == 0:
+        #         continue
+        excep_nodes = []
+        all_nodes = self.blockchain.current_nodes
+        for (ip,port) in all_nodes:
+            if (ip,port) != (self.IP,self.PORT):
+                try:
+                    client = NodeClient()
+                    client.send_chain(node_addr = (self.IP,self.PORT), conn_addr = (ip,port),chain = self.blockchain.chain)
+                    print('sending chain to: ', ip, port)
+                    client.close()
+                except:
+                    excep_nodes.append((ip,port)) # this is gonna stay for a while, but actually it is smthg we do not need to happen (losing nodes)
+        self.pop_nodes(excep_nodes)
 
     def __connect_nodes(self):
         excep_nodes = []
