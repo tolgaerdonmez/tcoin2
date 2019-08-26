@@ -80,7 +80,7 @@ class WClient(socket.socket):
         one_client.send(tx_data)
         one_client.close()
 
-class Wallet(socket.socket):
+class Wallet():
 
     def __init__(self, node_addr = tuple(), pr = None, pu = None):
         # __init__ Wallet
@@ -95,7 +95,7 @@ class Wallet(socket.socket):
             self.public, self.private = rsa.newkeys(self.__BITS)
             print('Your Wallet has been created')
 
-        self.pu_ser = rsa.pem.save_pem(self.public._save_pkcs1_pem(),'RSA PUBLIC KEY')
+        self.pu_ser = (rsa.pem.save_pem(self.public._save_pkcs1_pem(),'RSA PUBLIC KEY')).decode()
         
         # connect to blockchain if node_addr is given
         if len(self.node_addr) != 0:
@@ -111,9 +111,9 @@ class Wallet(socket.socket):
         for block in self.chain:
             for tx_dict in block.transactions:
                 tx = Transaction.from_dict(tx_dict)
-                if tx.sender == self.pu_ser.decode():
+                if tx.sender == self.pu_ser:
                     minus += tx.input
-                if tx.receiver == self.pu_ser.decode():
+                if tx.receiver == self.pu_ser:
                     plus += tx.output
         total = plus - minus
         print(plus,minus)
@@ -129,8 +129,8 @@ class Wallet(socket.socket):
 
     def send_tx(self, receiver_pu, amount, tx_fee):
         new_tx = Transaction(
-            sender = self.pu_ser.decode(),
-            receiver = receiver_pu.decode(),
+            sender = self.pu_ser,
+            receiver = receiver_pu,
             input = amount + tx_fee,
             output = amount
         )
@@ -170,7 +170,12 @@ class Wallet(socket.socket):
         t.start()
 
     @staticmethod
-    def verify(data, sig, public_key):
+    def verify(tx):
+        # tx obj of class Transaction
+        public_key = rsa.pem.load_pem(tx.sender,'RSA PUBLIC KEY')
+        public_key = rsa.PublicKey.load_pkcs1(public_key)
+        sig = tx.sig
+        data = str(tx.gather()).encode()
         # rsa.verify returns the data encryption type it's sha256 for us
         try:
             rsa.verify(data, sig, public_key)
@@ -189,3 +194,19 @@ class Wallet(socket.socket):
             return False
         public_key = rsa.key.PublicKey(private_key.n, private_key.e)
         return Wallet(node_addr = node_addr,pr = private_key, pu = public_key)
+
+    @staticmethod
+    def optioned_create_wallet(node_addr = tuple()):
+        path = input('Path to create or load wallet: ')
+        if path == '':
+            path = './'
+        try_load = Wallet.load_wallet_pem(file_path=path)
+        if try_load: # if a wallet is loaded, return it
+            if node_addr:
+                try_load.node_addr = node_addr
+                try_load.connect_blockchain()
+            return try_load
+        else:
+            new_wallet = Wallet(node_addr = node_addr)
+            new_wallet.save_wallet_pem(file_path=path)
+            return new_wallet

@@ -32,3 +32,17 @@ class Transaction():
         tx = Transaction(sender = dict['sender'],receiver = dict['receiver'], input = dict['input'], output = dict['output'])
         tx.sig = dict['sig']
         return tx
+    
+    @staticmethod
+    def calc_fee(transactions):
+        sum = 0
+        if len(transactions) > 0:
+            for tx in transactions:
+                if type(tx) == type(dict()):
+                    sum += tx['tx_fee']
+                else:
+                    sum += tx.tx_fee
+            return sum
+        else:
+            return False
+        

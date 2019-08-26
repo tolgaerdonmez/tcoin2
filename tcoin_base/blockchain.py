@@ -1,3 +1,4 @@
+from .transaction import Transaction
 import hashlib
 import datetime
 import time
@@ -44,7 +45,8 @@ class Block():
     # def from_dict(self):
     #     b = Block()
 
-DIFFICULTY = '0000'
+DIFFICULTY = '00'
+MINER_BONUS = 10
 
 class Blockchain():
 
@@ -88,6 +90,15 @@ class Blockchain():
 
         nodes = self.current_nodes.copy()
         transactions = self.current_transactions.copy()
+        
+        tx_fee = Transaction.calc_fee(transactions)
+        if tx_fee:
+            tx_fee = Transaction(sender = None, receiver = miner, input = tx_fee, output = tx_fee) # creating tx for miners tx_fee
+            transactions.append(tx_fee.dict())
+        
+        miner_bonus = Transaction(sender = None, receiver = miner, input = MINER_BONUS, output = MINER_BONUS) # creating tx for miner bonus
+        transactions.append(miner_bonus.dict())
+        
         new_block = Block(
             index = len(self.chain) + 1,
             previous_hash = prev_hash,

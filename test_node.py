@@ -28,7 +28,7 @@ def cmd():
         if cmd == 'check':
             print(Blockchain.check_chain(n1.blockchain.chain))
         if cmd == 'mine':
-            n1.blockchain.create_block(n1.wallet.pu_ser.decode())
+            n1.blockchain.create_block(n1.wallet.pu_ser)
         if cmd == 'chain':
             print(len(n1.blockchain.chain))
         if cmd == 'nodes':
@@ -39,7 +39,10 @@ def cmd():
         if cmd == 'send':
             n1.send_chain()
         if cmd == 'tx':
-            print(n1.blockchain.current_transactions)
+            print(len(n1.blockchain.current_transactions))
+        if cmd == 'calc':
+            n1.wallet.chain = n1.blockchain.chain
+            print(n1.wallet.calculate_coins())
 # for i in range(10):
 #     n1.blockchain.create_block(n1.wallet.pu_ser.decode())
 
